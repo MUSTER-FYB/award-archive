@@ -202,8 +202,8 @@ function categoryAnalysis(data) {
     }
     analysis.append(directions);
   }
-  const source = '文档分析 · ' + data.sampleCount + ' 个案例' +
-    (data.distribution ? '；占比统计样本 · ' + data.distributionSampleCount + ' 个' : '');
+  const source = data.sourceNote || ('文档分析 · ' + data.sampleCount + ' 个案例' +
+    (data.distribution ? '；占比统计样本 · ' + data.distributionSampleCount + ' 个' : ''));
   analysis.append(el('p', 'category-analysis-source', source));
   return analysis;
 }
