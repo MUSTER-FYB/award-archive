@@ -130,7 +130,21 @@ function renderCollection() {
     for (const child of group.children) {
       const section = el('section', 'category-section'); section.dataset.category = child.id;
       const sectionHead = el('div', 'section-head'); const text = el('div');
-      text.append(el('h3', '', child.name), el('p', '', number(child.count) + ' 条作品记录 · 框内上下滚动查看作品，框外滚动浏览类别'));
+      text.append(el('h3', '', child.name));
+      if (child.analysis) {
+        const analysis = el('div', 'category-analysis');
+        analysis.append(el('p', 'category-analysis-summary', child.analysis.summary),
+          el('p', 'category-analysis-source', '文档分析 · ' + child.analysis.sampleCount + ' 个案例'));
+        if (child.analysis.distribution) {
+          const distribution = el('div', 'category-analysis-distribution');
+          distribution.append(el('p', 'category-analysis-caption', '创新方向占比 · 文档样本 ' + child.analysis.distributionSampleCount + ' 个'),
+            el('p', '', child.analysis.distribution));
+          analysis.append(distribution);
+        }
+        text.append(analysis);
+      } else {
+        text.append(el('p', '', number(child.count) + ' 条作品记录 · 框内上下滚动查看作品，框外滚动浏览类别'));
+      }
       sectionHead.append(text);
       const rail = el('div', 'rail'); rail.tabIndex = 0; rail.setAttribute('role', 'region'); rail.setAttribute('aria-label', child.name + '作品瀑布流');
       section.append(sectionHead, rail); wrapper.append(section);
