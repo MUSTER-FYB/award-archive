@@ -140,14 +140,10 @@ function renderCollection() {
       text.append(el('h3', '', child.name));
       if (child.analysis) {
         const analysis = el('div', 'category-analysis');
-        analysis.append(el('p', 'category-analysis-summary', child.analysis.summary),
-          el('p', 'category-analysis-source', '文档分析 · ' + child.analysis.sampleCount + ' 个案例'));
-        if (child.analysis.distribution) {
-          const distribution = el('div', 'category-analysis-distribution');
-          distribution.append(el('p', 'category-analysis-caption', '创新方向占比 · 文档样本 ' + child.analysis.distributionSampleCount + ' 个'),
-            el('p', '', child.analysis.distribution));
-          analysis.append(distribution);
-        }
+        const summary = [child.analysis.summary, child.analysis.distribution].filter(Boolean).join('\n');
+        const source = '文档分析 · ' + child.analysis.sampleCount + ' 个案例' +
+          (child.analysis.distribution ? '；占比统计样本 · ' + child.analysis.distributionSampleCount + ' 个' : '');
+        analysis.append(el('p', 'category-analysis-summary', summary), el('p', 'category-analysis-source', source));
         text.append(analysis);
       } else {
         text.append(el('p', '', number(child.count) + ' 条作品记录 · 框内上下滚动查看作品，框外滚动浏览类别'));
