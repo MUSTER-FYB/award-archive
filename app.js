@@ -3,7 +3,11 @@ const $ = id => document.getElementById(id);
 const number = n => n.toLocaleString('zh-CN');
 let library, activeGroup = '', activeChild = '', activeMechanism = '', featuredItem, focusBeforeModal;
 let columnCount = getColumnCount();
-const shortAward = award => /student|talent/i.test(award) ? 'iF 学生奖' : /red\s*dot/i.test(award) ? 'Red Dot' : award;
+const displayAward = item => item.awardLabel || item.award;
+function topItem(items) {
+  return items.reduce((best, item) => !best || item.awardPriority < best.awardPriority ||
+    (item.awardPriority === best.awardPriority && Number(item.year) > Number(best.year)) ? item : best, undefined);
+}
 function getColumnCount() { return innerWidth <= 560 ? 1 : innerWidth <= 900 ? 2 : 4; }
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -75,7 +79,7 @@ function chooseMechanism(name) { activeMechanism = name; refreshResults(); }
 function resetFilters() { activeGroup = ''; activeChild = ''; activeMechanism = ''; refreshResults(); }
 function refreshResults() {
   renderFilters(); renderCollection();
-  setFeature(allItems(visibleGroups())[0]);
+  setFeature(topItem(allItems(visibleGroups())));
 }
 function insightRows(entry = {}) {
   return [['用户', entry.user], ['场景', entry.scenario], ['痛点', entry.painPoint]];
@@ -86,8 +90,11 @@ function makeCard(item) {
   const mechanisms = item.innovationMechanisms || [];
   card.style.setProperty('--card-min-height', (190 + mechanisms.length * 27) + 'px');
   card.style.setProperty('--ratio', String(Math.max(.65, Math.min(1.7, item.ratio))));
-  card.setAttribute('aria-label', item.title + '，' + shortAward(item.award) + ' ' + item.year + '，查看详情');
-  const img = new Image(); img.src = item.thumbnail || item.images[0]; img.alt = item.title; img.loading = 'lazy'; img.decoding = 'async';
+  card.setAttribute('aria-label', item.title + '，' + displayAward(item) + ' ' + item.year + '，查看详情');
+  let visual = el('span', 'image-placeholder', '图片待补充');
+  if (item.images.length) {
+    visual = new Image(); visual.src = item.thumbnail || item.images[0]; visual.alt = item.title; visual.loading = 'lazy'; visual.decoding = 'async';
+  }
   const hover = el('span', 'hover-info');
   hover.id = 'insight-' + item.id;
   card.setAttribute('aria-describedby', hover.id);
@@ -99,8 +106,8 @@ function makeCard(item) {
   const tags = el('span', 'hover-mechanisms');
   tags.append(...mechanisms.map(name => el('span', 'mechanism-tag', name)));
   hover.append(tags);
-  const label = el('span', 'card-label'); label.append(el('span', 'card-title', item.title), el('span', 'card-sub', shortAward(item.award) + ' · ' + item.year));
-  card.append(img, el('span', 'veil'), hover, label);
+  const label = el('span', 'card-label'); label.append(el('span', 'card-title', item.title), el('span', 'card-sub', displayAward(item) + ' · ' + item.year));
+  card.append(visual, el('span', 'veil'), hover, label);
   card.addEventListener('mouseenter', () => setFeature(item));
   card.addEventListener('focus', () => setFeature(item));
   card.addEventListener('click', () => openModal(item));
@@ -166,9 +173,12 @@ function setFeature(item) {
   if (!item) { featuredItem = undefined; return; }
   if (item === featuredItem) return;
   featuredItem = item;
-  $('featureImage').src = item.images[0]; $('featureImage').alt = item.title;
+  $('featureImage').hidden = !item.images.length; $('featurePlaceholder').hidden = !!item.images.length;
+  if (item.images.length) $('featureImage').src = item.images[0];
+  else $('featureImage').removeAttribute('src');
+  $('featureImage').alt = item.title;
   $('featureTitle').textContent = item.title;
-  $('featureAward').textContent = shortAward(item.award) + ' · ' + item.year;
+  $('featureAward').textContent = displayAward(item) + ' · ' + item.year;
   $('featureCategory').textContent = item.group + ' / ' + item.category;
   $('featureDesc').textContent = item.summary || item.productType;
 }
@@ -180,6 +190,7 @@ function openModal(item) {
   $('modalGallery').replaceChildren(...item.images.map((url, i) => {
     const image = new Image(); image.src = url; image.alt = item.title + ' · 图片 ' + (i+1); image.loading = i ? 'lazy' : 'eager'; return image;
   }));
+  if (!item.images.length) $('modalGallery').append(el('p', 'image-placeholder', '图片待补充'));
   $('modalAward').textContent = item.award + ' · ' + item.year;
   $('modalTitle').textContent = item.title;
   $('modalSummary').textContent = item.summary;
@@ -225,7 +236,7 @@ function renderStats() {
   $('categoryBreakdown').replaceChildren(...groups.flatMap(g => g.children.map(c => {
     const row = el('tr'); row.append(el('td','',g.name), el('td','',c.name), el('td','',number(c.count))); return row;
   })));
-  $('statsNote').textContent = '统计范围：全库 ' + stats.yearFrom + '—' + stats.yearTo + ' 年记录，包含 iF 设计奖、iF 学生奖及历史 Talent Award、Red Dot。按作品记录计数，同名作品的不同奖项或官方类别记录分别保留。';
+  $('statsNote').textContent = '统计范围：全库 ' + stats.yearFrom + '—' + stats.yearTo + ' 年记录，包含 iF 设计奖、iF 学生奖及历史 Talent Award、Red Dot 和红点概念奖。按作品记录计数，同名作品的不同奖项或官方类别记录分别保留。';
   $('syncDate').textContent = '更新于 ' + new Intl.DateTimeFormat('zh-CN', {dateStyle:'medium', timeStyle:'short', timeZone:'Asia/Shanghai'}).format(new Date(library.generatedAt));
 }
 async function init() {
@@ -233,7 +244,7 @@ async function init() {
     const response = await fetch('./library.json', {cache:'no-store'});
     if (!response.ok) throw new Error('Library HTTP ' + response.status);
     library = await response.json();
-    renderFilters(); renderCollection(); renderStats(); setFeature(allItems()[0]);
+    renderFilters(); renderCollection(); renderStats(); setFeature(topItem(allItems()));
   } catch (error) {
     console.error(error); const retry = el('button', 'chip', '重新加载'); retry.addEventListener('click', init);
     $('rails').replaceChildren(el('p', 'load-error', '作品资料暂时无法加载，请稍后重试。'), retry);
