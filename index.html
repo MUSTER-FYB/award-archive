@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AWARD / 作品档案馆</title>
+  <link rel="stylesheet" href="./base.css?v=3f8ac4f4b5bb">
+  <link rel="stylesheet" href="./archive.css?v=3f8ac4f4b5bb">
+  <script src="./app.js?v=3f8ac4f4b5bb" defer></script>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="brand"><div class="brandmark">A/</div><span>AWARD ARCHIVE</span></div>
+    <nav class="nav"><a class="active" href="#explore">EXPLORE</a><a href="#stats">INSIGHTS</a><a href="#about">ABOUT</a></nav>
+  </header>
+  <main>
+    <section class="intro" id="explore">
+      <div><div class="eyebrow">IF DESIGN AWARD × RED DOT</div><h1>Design that<br><em>moves</em> us.</h1></div>
+      <div class="intro-copy"><strong>一个可探索的获奖作品档案馆</strong>从六个设计领域出发，在二十二个子类中发现 iF 与红点获奖作品。框内上下浏览同类设计，悬停预览，点击深入。</div>
+    </section>
+    <div class="explorer-layout">
+        <aside class="category-nav" aria-label="纵向两级分类导航">
+          <div class="filter-label">设计领域 / CATEGORIES</div>
+          <p class="category-caption">从大类到具体产品</p>
+          <button type="button" class="chip category-reset" id="categoryReset" data-filter-key="category-all">全部分类 <small></small></button>
+          <div class="category-list" id="filters" role="group" aria-label="两级分类"></div>
+        </aside>
+      <div class="explorer-main">
+        <section class="taxonomy" aria-label="创新机制筛选">
+          <div class="feature-nav-head"><div class="filter-label">创新机制 / MECHANISMS</div><button type="button" id="resetFilters" class="reset-filters">重置筛选 ↺</button></div>
+          <p class="feature-hint">在当前分类中，发现同一种创新方式。</p>
+          <div class="feature-filterbar" id="mechanismFilters" role="group" aria-label="创新机制"></div>
+          <p class="result-line" id="resultLine" aria-live="polite">正在读取作品分类…</p>
+        </section>
+    <section class="featured" id="featured" hidden>
+      <div class="feature-img"><img id="featureImage" alt="获奖作品预览"></div>
+      <div class="feature-copy">
+        <div><div class="feature-meta"><span id="featureAward"></span><span class="badge">FEATURED</span></div><h2 id="featureTitle"></h2><p id="featureDesc"></p></div>
+        <div class="feature-foot"><span id="featureCategory"></span><button id="featureAction" class="arrow feature-action" aria-label="查看预览作品详情">↗</button></div>
+      </div>
+    </section>
+    <div id="rails"><p class="loading">正在加载作品…</p></div>
+      </div>
+    </div>
+    <section class="stats" id="stats">
+      <div class="stats-head"><div><div class="eyebrow">COLLECTION SIGNALS</div><h2>这批作品在说什么？</h2></div><span id="syncDate"></span></div>
+      <div class="stat-grid">
+        <div class="stat"><b id="totalCount">—</b><p>全库作品记录</p></div>
+        <div class="stat"><b id="groupCount">—</b><p>设计大类</p></div>
+        <div class="stat"><b id="catCount">—</b><p>细分子类</p></div>
+        <div class="stat"><b id="awardCount">—</b><p>奖项体系 · iF / Red Dot</p></div>
+      </div>
+      <div class="distribution" id="distribution" aria-label="六大类作品数量分布"></div>
+      <p class="stats-note" id="statsNote"></p>
+      <details class="breakdown"><summary>查看全部子类数量</summary><div class="table-scroll"><table><thead><tr><th>大类</th><th>子类</th><th>记录数</th></tr></thead><tbody id="categoryBreakdown"></tbody></table></div></details>
+    </section>
+  </main>
+  <footer class="footer" id="about"><span>AWARD ARCHIVE / 2026</span><span>SCROLL TO DISCOVER ↓</span></footer>
+</div>
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-gallery" id="modalGallery"></div>
+    <div class="modal-body">
+      <button class="close" id="closeModal" aria-label="关闭作品详情">×</button>
+      <div class="eyebrow" id="modalAward"></div><h2 id="modalTitle"></h2>
+      <h3>作品速览</h3><p class="desc" id="modalSummary"></p><div class="info-list" id="modalInfo"></div>
+      <h3>用户 · 场景 · 痛点</h3><div id="modalInsights"></div><p class="translation" id="modalInsightStatus"></p>
+      <h3>作品说明</h3><p class="desc" id="modalDesc"></p><p class="translation" id="modalTranslation"></p>
+      <a class="source-link" id="modalSource" target="_blank" rel="noopener noreferrer">查看官方作品页 ↗</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>
