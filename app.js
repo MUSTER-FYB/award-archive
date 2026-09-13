@@ -125,6 +125,28 @@ function layoutRail(rail, cards) {
   rail.replaceChildren(...columns);
   rail._cards = cards;
 }
+function categoryAnalysis(data) {
+  const analysis = el('div', 'category-analysis');
+  const summary = el('p', 'category-analysis-summary');
+  // Keep percentages in the conclusion, with emphasis that does not change the text.
+  for (const part of (data.lead || data.summary).split(/((?:约)?\d+(?:\.\d+)?%(?:-\d+(?:\.\d+)?%)?)/g)) {
+    summary.append(/%/.test(part) ? el('strong', 'analysis-percentage', part) : document.createTextNode(part));
+  }
+  analysis.append(summary);
+  if (data.directions?.length) {
+    const directions = el('ul', 'analysis-directions' + (data.directions.length > 1 ? ' analysis-directions-grid' : ''));
+    for (const entry of data.directions) {
+      const row = el('li', 'analysis-direction');
+      row.append(el('strong', 'analysis-direction-label', entry.label), el('span', '', entry.text));
+      directions.append(row);
+    }
+    analysis.append(directions);
+  }
+  const source = '文档分析 · ' + data.sampleCount + ' 个案例' +
+    (data.distribution ? '；占比统计样本 · ' + data.distributionSampleCount + ' 个' : '');
+  analysis.append(el('p', 'category-analysis-source', source));
+  return analysis;
+}
 function renderCollection() {
   const fragment = document.createDocumentFragment();
   for (const group of visibleGroups()) {
@@ -139,12 +161,7 @@ function renderCollection() {
       const sectionHead = el('div', 'section-head'); const text = el('div');
       text.append(el('h3', '', child.name));
       if (child.analysis) {
-        const analysis = el('div', 'category-analysis');
-        const summary = [child.analysis.summary, child.analysis.distribution].filter(Boolean).join('\n');
-        const source = '文档分析 · ' + child.analysis.sampleCount + ' 个案例' +
-          (child.analysis.distribution ? '；占比统计样本 · ' + child.analysis.distributionSampleCount + ' 个' : '');
-        analysis.append(el('p', 'category-analysis-summary', summary), el('p', 'category-analysis-source', source));
-        text.append(analysis);
+        text.append(categoryAnalysis(child.analysis));
       } else {
         text.append(el('p', '', number(child.count) + ' 条作品记录 · 框内上下滚动查看作品，框外滚动浏览类别'));
       }
