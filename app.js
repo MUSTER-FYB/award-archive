@@ -4,10 +4,6 @@ const number = n => n.toLocaleString('zh-CN');
 let library, activeGroup = '', activeChild = '', activeMechanism = '', featuredItem, focusBeforeModal;
 let columnCount = getColumnCount();
 const displayAward = item => item.awardLabel || item.award;
-function topItem(items) {
-  return items.reduce((best, item) => !best || item.awardPriority < best.awardPriority ||
-    (item.awardPriority === best.awardPriority && Number(item.year) > Number(best.year)) ? item : best, undefined);
-}
 function getColumnCount() { return innerWidth <= 560 ? 1 : innerWidth <= 900 ? 2 : 4; }
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -79,7 +75,7 @@ function chooseMechanism(name) { activeMechanism = name; refreshResults(); }
 function resetFilters() { activeGroup = ''; activeChild = ''; activeMechanism = ''; refreshResults(); }
 function refreshResults() {
   renderFilters(); renderCollection();
-  setFeature(topItem(allItems(visibleGroups())));
+  setFeature(allItems(visibleGroups())[0]);
 }
 function insightRows(entry = {}) {
   return [['用户', entry.user], ['场景', entry.scenario], ['痛点', entry.painPoint]];
@@ -278,7 +274,7 @@ async function init() {
     const response = await fetch('./library.json', {cache:'no-store'});
     if (!response.ok) throw new Error('Library HTTP ' + response.status);
     library = await response.json();
-    renderFilters(); renderCollection(); renderStats(); setFeature(topItem(allItems()));
+    renderFilters(); renderCollection(); renderStats(); setFeature(allItems()[0]);
   } catch (error) {
     console.error(error); const retry = el('button', 'chip', '重新加载'); retry.addEventListener('click', init);
     $('rails').replaceChildren(el('p', 'load-error', '作品资料暂时无法加载，请稍后重试。'), retry);
