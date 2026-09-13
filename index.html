@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>AWARD / 作品档案馆</title>
-  <link rel="stylesheet" href="./base.css?v=ec22ce6f27e6">
-  <link rel="stylesheet" href="./archive.css?v=ec22ce6f27e6">
-  <script src="./app.js?v=ec22ce6f27e6" defer></script>
+  <link rel="stylesheet" href="./base.css?v=7306eaa03311">
+  <link rel="stylesheet" href="./archive.css?v=7306eaa03311">
+  <script src="./app.js?v=7306eaa03311" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -60,13 +60,21 @@
 </div>
 <div class="modal-backdrop" id="modalBackdrop">
   <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <header class="modal-header">
+      <div class="modal-heading"><div class="eyebrow" id="modalAward"></div><h2 id="modalTitle"></h2></div>
+      <button class="close" id="closeModal" aria-label="关闭作品详情">×</button>
+    </header>
     <div class="modal-gallery" id="modalGallery"></div>
     <div class="modal-body">
-      <button class="close" id="closeModal" aria-label="关闭作品详情">×</button>
-      <div class="eyebrow" id="modalAward"></div><h2 id="modalTitle"></h2>
-      <h3>作品速览</h3><p class="desc" id="modalSummary"></p><div class="info-list" id="modalInfo"></div>
-      <h3>用户 · 场景 · 痛点</h3><div id="modalInsights"></div><p class="translation" id="modalInsightStatus"></p>
-      <h3>作品说明</h3><p class="desc" id="modalDesc"></p><p class="translation" id="modalTranslation"></p>
+      <section class="detail-section" aria-labelledby="descriptionHeading">
+        <h3 id="descriptionHeading">作品说明</h3><p class="desc" id="modalDesc"></p><p class="translation" id="modalTranslation"></p>
+      </section>
+      <section class="detail-section" aria-labelledby="overviewHeading">
+        <h3 id="overviewHeading">作品速览</h3><div class="info-list" id="modalInfo"></div>
+      </section>
+      <section class="detail-section" aria-labelledby="insightsHeading">
+        <h3 id="insightsHeading">用户 · 场景 · 痛点</h3><div id="modalInsights"></div><p class="translation" id="modalInsightStatus"></p>
+      </section>
       <a class="source-link" id="modalSource" target="_blank" rel="noopener noreferrer">查看官方作品页 ↗</a>
     </div>
   </div>

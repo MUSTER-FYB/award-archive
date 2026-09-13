@@ -198,6 +198,30 @@ function setFeature(item) {
 function infoRow(label, value) {
   const row = el('div', 'info-row'); row.append(el('span', '', label), el('span', '', value || '未记录')); return row;
 }
+function overviewRows(item) {
+  const aliases = new Map([
+    ['获奖年份', '年份'], ['作品类型', '产品类型'], ['红点官方二级分类', '官方类别'],
+    ['奖项名称', '奖项'], ['获奖等级', '奖项等级'], ['本地图片', '作品图片'], ['设计者／团队', '设计者/团队']
+  ]);
+  const fields = new Map();
+  const add = (name, value) => {
+    const key = aliases.get(name.trim()) || name.trim();
+    const text = String(value ?? '').trim();
+    if (!text || !key || /^(?:作品说明|官方说明(?:（中文）)?|作品简介|作品摘要)$/.test(key)) return;
+    const values = fields.get(key) || [];
+    if (!values.some(v => v.replace(/\s+/g, '') === text.replace(/\s+/g, ''))) values.push(text);
+    fields.set(key, values);
+  };
+  const base = [['网页分类', item.group + ' / ' + item.category], ['奖项', item.award], ['奖项等级', item.awardLevel], ['年份', item.year],
+    ['官方领域', item.discipline], ['官方类别', item.officialCategory], ['产品类型', item.productType], ['作品图片', item.images.length + ' 张']];
+  for (const [name, value] of base) add(name, value);
+  for (const [name, value] of item.overview || []) {
+    // This combined field is already represented by the separate award and level rows.
+    if (name === '奖项与等级' && item.award && item.awardLevel) continue;
+    add(name, value);
+  }
+  return [...fields].map(([name, values]) => [name, values.join('\n')]);
+}
 function openModal(item) {
   focusBeforeModal = document.activeElement;
   $('modalGallery').replaceChildren(...item.images.map((url, i) => {
@@ -206,13 +230,8 @@ function openModal(item) {
   if (!item.images.length) $('modalGallery').append(el('p', 'image-placeholder', '图片待补充'));
   $('modalAward').textContent = item.award + ' · ' + item.year;
   $('modalTitle').textContent = item.title;
-  $('modalSummary').textContent = item.summary;
   $('modalDesc').textContent = item.description || '当前资料尚未记录作品说明。';
-  const rows = [['网页分类', item.group + ' / ' + item.category], ['奖项等级', item.awardLevel], ['年份', item.year],
-    ['官方领域', item.discipline], ['官方类别', item.officialCategory], ['产品类型', item.productType], ['作品图片', item.images.length + ' 张']];
-  const represented = new Set(['奖项与等级','获奖年份','年份','官方领域','官方类别','作品类型','产品类型']);
-  for (const row of item.overview) if (!represented.has(row[0])) rows.push(row);
-  $('modalInfo').replaceChildren(...rows.filter(([,v]) => v).map(([k,v]) => infoRow(k,v)));
+  $('modalInfo').replaceChildren(...overviewRows(item).map(([k,v]) => infoRow(k,v)));
   const insights = item.userScenarioPain || [];
   $('modalInsights').replaceChildren(...(insights.length ? insights.map((entry, index) => {
     const block = el('div', 'insight-block');
@@ -222,6 +241,8 @@ function openModal(item) {
   }) : [el('p', 'desc', '当前资料尚未记录用户、场景、痛点。')]));
   $('modalInsightStatus').textContent = item.uspAnalysisStatus ? '分析状态：' + item.uspAnalysisStatus : '';
   $('modalTranslation').textContent = item.translation ? '译文来源：' + item.translation : '';
+  $('modalTranslation').hidden = !item.translation;
+  $('modalInsightStatus').hidden = !item.uspAnalysisStatus;
   const link = $('modalSource'); let url;
   try { url = new URL(item.url); } catch {}
   link.hidden = !url || !['https:','http:'].includes(url.protocol);
