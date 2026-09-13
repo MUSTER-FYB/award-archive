@@ -4,6 +4,68 @@ const number = n => n.toLocaleString('zh-CN');
 let library, activeGroup = '', activeChild = '', activeMechanism = '', featuredItem, focusBeforeModal;
 let columnCount = getColumnCount();
 const displayAward = item => item.awardLabel || item.award;
+const mechanismStandards = {
+  '形态与空间重构': '通过折叠、伸缩、翻转、展开、收合等方式，改变产品形态、占用空间或使用状态。',
+  '多功能集成': '将两种或多种可区分的用途整合到同一产品，通过共享结构、空间或部件形成联系。',
+  '模块化与可重构设计': '通过具有相对独立功能的模块和明确的连接接口，实现拆换、组合、扩展或升级。',
+  '感知、反馈与智能控制': '通过传感器或数据输入识别用户、产品或环境状态，再提供反馈、建议或自动调节。',
+  '交互与行为引导': '通过操作方式、信息表达、提示、奖励或游戏机制，帮助用户理解信息、作出决策、完成操作或调整行为。',
+  '材料、结构与制造工艺创新': '通过材料特性、受力结构或加工方法，改善性能、触感、重量、成本或制造效率。',
+  '循环利用与寿命延长': '通过废弃物再利用、维修、翻新、再制造、回收再生等机制，减少资源消耗、延长产品寿命或促进材料循环。',
+  '服务与流程重组': '通过改变服务步骤、参与者分工、交付方式或资源配置，解决原有流程中的问题。',
+  '其他／待归类': '现有资料无法支持上述任何分类，或案例采用的机制暂未被上述分类覆盖。'
+};
+let mechanismHelp, mechanismHelpTimer;
+function hideMechanismHelp() {
+  clearTimeout(mechanismHelpTimer);
+  if (mechanismHelp) mechanismHelp.tip.hidden = true;
+  mechanismHelp = undefined;
+}
+function scheduleMechanismHelpHide() {
+  clearTimeout(mechanismHelpTimer);
+  mechanismHelpTimer = setTimeout(() => {
+    if (!mechanismHelp) return;
+    const {button, tip} = mechanismHelp;
+    if (document.activeElement !== button && !button.matches(':hover') && !tip.matches(':hover')) hideMechanismHelp();
+  }, 140);
+}
+function showMechanismHelp(button, tip) {
+  hideMechanismHelp();
+  mechanismHelp = {button, tip}; tip.hidden = false;
+  const bounds = button.getBoundingClientRect();
+  const box = tip.getBoundingClientRect();
+  const below = bounds.bottom + 12 + box.height <= innerHeight - 12 || bounds.top < box.height + 24;
+  const left = Math.max(12, Math.min(bounds.left + bounds.width / 2 - box.width / 2, innerWidth - box.width - 12));
+  const top = below ? bounds.bottom + 12 : bounds.top - box.height - 12;
+  tip.style.left = left + 'px';
+  tip.style.top = Math.max(12, Math.min(top, innerHeight - box.height - 12)) + 'px';
+  tip.dataset.side = below ? 'below' : 'above';
+  tip.style.setProperty('--arrow-left', Math.max(18, Math.min(bounds.left + bounds.width / 2 - left, box.width - 18)) + 'px');
+}
+function attachMechanismHelp(button, name) {
+  const index = Object.keys(mechanismStandards).indexOf(name);
+  if (index < 0) return;
+  const id = 'mechanism-standard-' + index;
+  let tip = $(id);
+  if (!tip) {
+    tip = el('div', 'mechanism-tooltip'); tip.id = id; tip.hidden = true; tip.setAttribute('role', 'tooltip');
+    tip.append(el('strong', 'mechanism-tooltip-title', name), el('p', '', mechanismStandards[name]));
+    tip.addEventListener('pointerenter', () => clearTimeout(mechanismHelpTimer));
+    tip.addEventListener('pointerleave', scheduleMechanismHelpHide);
+    document.body.append(tip);
+  }
+  button.setAttribute('aria-describedby', id);
+  button.addEventListener('pointerenter', () => showMechanismHelp(button, tip));
+  button.addEventListener('focus', () => showMechanismHelp(button, tip));
+  button.addEventListener('pointerleave', scheduleMechanismHelpHide);
+  button.addEventListener('blur', scheduleMechanismHelpHide);
+}
+document.addEventListener('keydown', event => { if (event.key === 'Escape') hideMechanismHelp(); });
+document.addEventListener('pointerdown', event => {
+  if (mechanismHelp && !mechanismHelp.button.contains(event.target) && !mechanismHelp.tip.contains(event.target)) hideMechanismHelp();
+});
+window.addEventListener('scroll', hideMechanismHelp, true);
+window.addEventListener('resize', hideMechanismHelp);
 function getColumnCount() { return innerWidth <= 560 ? 1 : innerWidth <= 900 ? 2 : 4; }
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -33,6 +95,7 @@ function chip(label, count, active, callback) {
   return button;
 }
 function renderFilters() {
+  hideMechanismHelp();
   const focusKey = document.activeElement?.dataset.filterKey;
   $('categoryReset').classList.toggle('active', !activeGroup);
   $('categoryReset').setAttribute('aria-pressed', String(!activeGroup));
@@ -56,6 +119,7 @@ function renderFilters() {
     const count = name ? scope.filter(item => item.innovationMechanisms.includes(name)).length : scope.length;
     const button = chip(label, count, activeMechanism === name, () => chooseMechanism(name));
     button.dataset.filterKey = 'mechanism-' + name; button.dataset.mechanism = name;
+    attachMechanismHelp(button, name);
     button.classList.toggle('zero-count', !count); return button;
   }));
   const group = library.groups.find(g => g.id === activeGroup);
@@ -219,6 +283,7 @@ function overviewRows(item) {
   return [...fields].map(([name, values]) => [name, values.join('\n')]);
 }
 function openModal(item) {
+  hideMechanismHelp();
   focusBeforeModal = document.activeElement;
   $('modalGallery').replaceChildren(...item.images.map((url, i) => {
     const image = new Image(); image.src = url; image.alt = item.title + ' · 图片 ' + (i+1); image.loading = i ? 'lazy' : 'eager'; return image;
