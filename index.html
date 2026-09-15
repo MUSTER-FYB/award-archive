@@ -4,9 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>AWARD / 作品档案馆</title>
-  <link rel="stylesheet" href="./base.css?v=f6b4af31ec62">
-  <link rel="stylesheet" href="./archive.css?v=f6b4af31ec62">
-  <script src="./app.js?v=f6b4af31ec62" defer></script>
+  <link rel="stylesheet" href="./base.css?v=071a8bc993c6">
+  <link rel="stylesheet" href="./archive.css?v=071a8bc993c6">
+  <link rel="stylesheet" href="./mind-map.css?v=071a8bc993c6">
+  <script src="./app.js?v=071a8bc993c6" defer></script>
+  <script src="./mind-map.js?v=071a8bc993c6" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -58,6 +60,23 @@
   </main>
   <footer class="footer" id="about"><span>AWARD ARCHIVE / 2026</span><span>SCROLL TO DISCOVER ↓</span></footer>
 </div>
+<section class="mm-scroll" id="mind-map-scroll" aria-label="产品设计思维导图">
+  <div class="mm-stage">
+    <header class="mm-header">
+      <div class="mm-topline"><span>DESIGN ATLAS <span class="mm-edition">/ 产品设计思维导图</span></span><button type="button" class="mm-button" data-mm-action="exit">返回作品库 ↑</button></div>
+      <div class="mm-heading"><div><p class="mm-kicker" id="mm-scene-label">从作品出发，探索设计的联系</p><h2 id="mm-title">产品设计思维导图</h2></div><p class="mm-meta" id="mm-meta">向下滚动，进入设计图谱</p></div>
+      <nav class="mm-breadcrumb" id="mm-breadcrumb" aria-label="思维导图路径"></nav>
+    </header>
+    <div class="mm-viewport" id="mm-viewport" tabindex="0" aria-label="思维导图画布：拖动平移，按加减号缩放">
+      <div class="mm-canvas" id="mm-canvas"></div>
+      <p class="mm-status" id="mm-status" role="status">滚动进入后加载分类</p>
+      <div class="mm-zoom" aria-label="导图控制"><button type="button" class="mm-button mm-touch-mode" data-mm-action="pan" aria-pressed="false">移动导图</button><button type="button" class="mm-button" data-mm-action="out" aria-label="缩小导图">−</button><span id="mm-scale">100%</span><button type="button" class="mm-button" data-mm-action="in" aria-label="放大导图">+</button><button type="button" class="mm-button" data-mm-action="fit">适应视图</button></div>
+      <div class="mm-pagination" id="mm-pagination" hidden><button type="button" class="mm-button" data-mm-action="previous-page">←</button><span id="mm-page-label"></span><button type="button" class="mm-button" data-mm-action="next-page">→</button></div>
+    </div>
+    <aside class="mm-inspector" id="mm-inspector" aria-label="案例速览" hidden></aside>
+    <footer class="mm-footer"><p>纵向滚动切换主线 <span>· 点击气泡展开 · 拖动平移 · Ctrl + 滚轮缩放</span></p><nav class="mm-scenes" id="mm-scenes" aria-label="思维导图场景"></nav><div class="mm-step"><button type="button" class="mm-button" data-mm-action="previous-scene" aria-label="上一个场景">↑</button><button type="button" class="mm-button" data-mm-action="next-scene" aria-label="下一个场景">↓</button></div></footer>
+  </div>
+</section>
 <div class="modal-backdrop" id="modalBackdrop">
   <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <header class="modal-header">

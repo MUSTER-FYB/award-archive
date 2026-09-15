@@ -285,6 +285,7 @@ function overviewRows(item) {
 function openModal(item) {
   hideMechanismHelp();
   focusBeforeModal = document.activeElement;
+  if ($('mind-map-scroll')) $('mind-map-scroll').inert = true;
   $('modalGallery').replaceChildren(...item.images.map((url, i) => {
     const image = new Image(); image.src = url; image.alt = item.title + ' · 图片 ' + (i+1); image.loading = i ? 'lazy' : 'eager'; return image;
   }));
@@ -314,8 +315,17 @@ function openModal(item) {
 }
 function closeModal() {
   $('modalBackdrop').classList.remove('open'); document.body.style.overflow = '';
+  if ($('mind-map-scroll')) $('mind-map-scroll').inert = false;
   document.querySelector('.shell').inert = false; focusBeforeModal?.focus({preventScroll:true});
 }
+window.awardArchive = {
+  get ready() { return !!library; },
+  openCase(id) {
+    const item = library && allItems().find(record => record.id === id);
+    if (item) openModal(item);
+    return !!item;
+  }
+};
 function renderStats() {
   const {stats, groups} = library;
   $('totalCount').textContent = number(stats.records); $('groupCount').textContent = stats.groups;
@@ -340,6 +350,7 @@ async function init() {
     if (!response.ok) throw new Error('Library HTTP ' + response.status);
     library = await response.json();
     renderFilters(); renderCollection(); renderStats(); setFeature(allItems()[0]);
+    window.dispatchEvent(new Event('archive:ready'));
   } catch (error) {
     console.error(error); const retry = el('button', 'chip', '重新加载'); retry.addEventListener('click', init);
     $('rails').replaceChildren(el('p', 'load-error', '作品资料暂时无法加载，请稍后重试。'), retry);
