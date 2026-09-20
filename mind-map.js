@@ -9,6 +9,7 @@
   const colors=['#b7ee43','#9ad1b2','#8eb4ff','#ffc078','#d5b5f3','#f3afa7','#bac3cb'];
   const cache=new Map(),requests=new Map(),buttons=new Map(),links=new Map(),pointers=new Map();
   let index,graph,initializing,layer,svg,frame,zoom=1,pan={x:0,y:0},dragging,moved=false;
+  let hoveredKey,focusedKey,highlightSelection;
   const el=(tag,cls,text)=>{
     const node=document.createElement(tag);if(cls)node.className=cls;
     if(text!==undefined)node.textContent=text;return node;
@@ -64,9 +65,31 @@
     }
     panel.hidden=false;
   }
+  function highlightNeighbors() {
+    if(!graph)return;
+    const active=[hoveredKey,focusedKey,highlightSelection,graph.selected].find(key=>buttons.has(key));
+    const node=graph.nodes.get(active);
+    const neighbors=new Set(node?[node.key,node.parent]:[]);
+    for(const key of buttons.keys())if(graph.nodes.get(key).parent===active)neighbors.add(key);
+    for(const [key,button] of buttons) {
+      button.classList.toggle('mm-highlight-source',key===active);
+      button.classList.toggle('mm-adjacent',key!==active&&neighbors.has(key));
+    }
+    for(const [key,line] of links)line.classList.toggle('mm-link-highlight',key===active||graph.nodes.get(key).parent===active);
+  }
   function createButton(node) {
     const button=el('button','mm-node mm-'+node.kind);button.type='button';
     button.dataset.nodeId=node.id;button.dataset.key=node.key;button.dataset.parentId=node.parent||'';
+    button.addEventListener('pointerenter',event=>{
+      if(event.pointerType==='touch')return;
+      hoveredKey=node.key;highlightNeighbors();
+    });
+    button.addEventListener('pointerleave',()=>{if(hoveredKey===node.key)hoveredKey=undefined;highlightNeighbors();});
+    button.addEventListener('focus',()=>{
+      if(button.matches(':focus-visible')){focusedKey=node.key;hoveredKey=undefined;highlightNeighbors();}
+    });
+    button.addEventListener('blur',()=>{if(focusedKey===node.key)focusedKey=undefined;highlightNeighbors();});
+    button.addEventListener('click',()=>{highlightSelection=node.key;focusedKey=undefined;highlightNeighbors();});
     if(node.kind==='case') {
       const media=el('span','mm-case-media');
       if(node.thumbnail) {
@@ -112,7 +135,7 @@
   }
   function header(visible) {
     $('mm-title').textContent=index.title;
-    $('mm-scene-label').textContent='多分支原位展开 · 拖动或手动适应视图查看全貌';
+    $('mm-scene-label').textContent='悬停查看相邻节点 · 多分支原位展开';
     $('mm-meta').textContent=index.stats.works.toLocaleString('zh-CN')+' 件作品 · 已展开 '+visible.filter(n=>n.expanded).length+' 个分支';
     const crumbs=document.createDocumentFragment();
     graph.path().forEach((node,i)=>{
@@ -120,7 +143,7 @@
       const b=el('button','',i===0?'设计起点':node.label);b.type='button';
       if(node.key===graph.selected)b.setAttribute('aria-current','location');
       // Breadcrumbs mark context; they never replace the graph or move the camera.
-      b.addEventListener('click',()=>{graph.select(node.key);render();});crumbs.append(b);
+      b.addEventListener('click',()=>{graph.select(node.key);highlightSelection=node.key;render();});crumbs.append(b);
     });
     $('mm-breadcrumb').replaceChildren(crumbs);
     host.querySelector('[data-mm-action="collapse"]').disabled=!graph.nodes.get(graph.selected)?.expanded;
@@ -130,6 +153,9 @@
     if(!graph)return;
     const visible=graph.visible(),keys=new Set(visible.map(n=>n.key));header(visible);status('');$('mm-inspector').hidden=true;
     for(const [key,button] of buttons)if(!keys.has(key)) {
+      if(hoveredKey===key)hoveredKey=undefined;
+      if(focusedKey===key)focusedKey=undefined;
+      if(highlightSelection===key)highlightSelection=undefined;
       const focused=document.activeElement===button;button.remove();buttons.delete(key);
       if(focused)buttons.get(graph.selected)?.focus({preventScroll:true});
     }
@@ -143,12 +169,13 @@
       updateButton(button,node);
       if(node.parent) {
         let line=links.get(node.key);
-        if(!line){line=document.createElementNS(svg.namespaceURI,'path');svg.append(line);links.set(node.key,line);}
+        if(!line){line=document.createElementNS(svg.namespaceURI,'path');line.dataset.childKey=node.key;svg.append(line);links.set(node.key,line);}
         const parent=graph.nodes.get(node.parent),dx=node.x-parent.x,dy=node.y-parent.y;
         line.setAttribute('d',`M ${parent.x} ${parent.y} Q ${parent.x+dx*.25} ${parent.y+dy*.75} ${node.x} ${node.y}`);
-        line.style.stroke=colors[node.theme]||colors[0];line.style.strokeOpacity='.26';
+        line.style.stroke=colors[node.theme]||colors[0];
       }
     }
+    highlightNeighbors();
     // No fit(), scrollTo(), fullscreen request or camera mutation is allowed here.
   }
   async function loadBranch(key,more=false) {
@@ -188,8 +215,8 @@
     else if(action==='fit')fit();
     else if(action==='pan'){const active=viewport.classList.toggle('mm-pan-mode');control.setAttribute('aria-pressed',String(active));control.textContent=active?'纵向浏览':'移动导图';}
     else if(action==='collapse')collapseSelected();
-    else if(action==='reset'&&graph){graph.collapseAll();render();}
-    else if(action==='pending'&&graph){const node=graph.showPending();render();if(node)loadBranch(node.key);}
+    else if(action==='reset'&&graph){graph.collapseAll();highlightSelection=ROOT;render();}
+    else if(action==='pending'&&graph){const node=graph.showPending();highlightSelection=node?.key;render();if(node)loadBranch(node.key);}
   });
   viewport.addEventListener('wheel',event=>{
     if(!event.ctrlKey&&!event.metaKey)return;
