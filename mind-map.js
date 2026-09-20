@@ -1,256 +1,195 @@
 (() => {
   'use strict';
-  const host = document.getElementById('mind-map-scroll');
-  if (!host) return;
-  const $ = id => document.getElementById(id);
-  const canvas = $('mm-canvas'), viewport = $('mm-viewport'), stage = host.querySelector('.mm-stage');
-  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)') || {matches:true};
-  const nextFrame = window.requestAnimationFrame || (callback => setTimeout(callback,16));
-  const cache = new Map(), knownNodes = new Map();
-  let index, loading, current, rootView, pendingRoot, expanded = false, page = 0, request = 0, frame;
-  let zoom = 1, pan = {x:0, y:0}, baseZoom = 1, bounds = {width:1000, height:600, x:0, y:0};
-  let activeLayer, transition, dragging, moved = false, lastPageUrl, pageHistory = [];
-  const pointers = new Map();
-  const colors = ['#b7ee43','#9ad1b2','#8eb4ff','#ffc078','#d5b5f3','#f3afa7'];
-  const el = (tag, cls, text) => {
-    const node = document.createElement(tag); if (cls) node.className = cls;
-    if (text !== undefined) node.textContent = text; return node;
+  const host=document.getElementById('mind-map-scroll');
+  if(!host)return;
+  const $=id=>document.getElementById(id);
+  const canvas=$('mm-canvas'),viewport=$('mm-viewport'),stage=host.querySelector('.mm-stage');
+  const {Graph,ROOT}=window.AwardMindMapGraph;
+  const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)') || {matches:true};
+  const colors=['#b7ee43','#9ad1b2','#8eb4ff','#ffc078','#d5b5f3','#f3afa7','#bac3cb'];
+  const cache=new Map(),requests=new Map(),buttons=new Map(),links=new Map(),pointers=new Map();
+  let index,graph,initializing,layer,svg,frame,zoom=1,pan={x:0,y:0},dragging,moved=false;
+  const el=(tag,cls,text)=>{
+    const node=document.createElement(tag);if(cls)node.className=cls;
+    if(text!==undefined)node.textContent=text;return node;
   };
-  const modalOpen = () => $('modalBackdrop')?.classList.contains('open');
-  const mobile = () => viewport.clientWidth < 600;
-  const pageSize = () => current?.id === 'overview' ? 6 : current?.cases ? (mobile() ? 2 : 4) : (mobile() ? 3 : 6);
-  const items = () => current?.cases || current?.children || [];
-  const status = text => { $('mm-status').textContent = text; };
+  const modalOpen=()=>$('modalBackdrop')?.classList.contains('open');
+  const status=text=>{$('mm-status').textContent=text;};
   function read(url) {
-    if (!cache.has(url)) cache.set(url, fetch(url, {cache:'no-cache'}).then(response => {
-      if (!response.ok) throw new Error('Mind map HTTP ' + response.status);
+    if(!cache.has(url))cache.set(url,fetch(url,{cache:'no-cache'}).then(response=>{
+      if(!response.ok)throw new Error('Mind map HTTP '+response.status);
       return response.json();
-    }).catch(error => { cache.delete(url); throw error; }));
+    }).catch(error=>{cache.delete(url);throw error;}));
     return cache.get(url);
   }
-  function register(node) { if (node?.id && node.url) knownNodes.set(node.id, {...knownNodes.get(node.id), ...node}); }
-  function showError(retry) {
-    status('此分支暂时无法加载。');
-    const button = el('button', 'mm-button', '重试'); button.type = 'button';
-    button.addEventListener('click', retry); $('mm-status').append(button);
-  }
   async function init() {
-    if (loading) return loading;
-    loading = (async () => {
+    if(initializing)return initializing;
+    initializing=(async()=>{
       try {
-        index = await read('./mind-map-data/index.json');
-        index.roots.forEach(register);
-        pendingRoot = index.roots.find(entry => entry.label === '待映射');
-        rootView = {id:'overview',label:index.title,path:[],count:index.stats.works,children:index.roots.filter(entry => entry !== pendingRoot)};
-        const pendingButton = host.querySelector('[data-mm-action="pending"]');
-        pendingButton.hidden = !pendingRoot;
-        if (pendingRoot) pendingButton.textContent = '待映射案例 · ' + pendingRoot.count;
-        overview(false, false);
+        index=await read('./mind-map-data/index.json');graph=new Graph(index);
+        layer=el('div','mm-layer');layer.dataset.root=ROOT;canvas.append(layer);
+        svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+        svg.setAttribute('class','mm-links');svg.setAttribute('viewBox','-600 -400 1200 800');svg.setAttribute('aria-hidden','true');layer.append(svg);
+        const pending=host.querySelector('[data-mm-action="pending"]');pending.hidden=!graph.pending;
+        if(graph.pending)pending.textContent='待映射案例 · '+graph.pending.count;
+        render();
+        // Initial camera only. Node clicks never call fit/position.
+        fit(graph.bounds([graph.nodes.get(ROOT),...graph.themes.map(n=>graph.nodes.get(n.id))]));
         updateScroll();
-      } catch { loading = undefined; showError(init); }
-    })();
-    return loading;
+      } catch {
+        initializing=undefined;status('导图暂时无法加载。');
+        const retry=el('button','mm-button','重试');retry.type='button';retry.addEventListener('click',init);$('mm-status').append(retry);
+      }
+    })();return initializing;
   }
   function position() {
-    canvas.style.transform = `translate(${pan.x}px,${pan.y}px) scale(${zoom})`;
-    $('mm-scale').textContent = Math.round(zoom / baseZoom * 100) + '%';
+    canvas.style.transform=`translate(${pan.x}px,${pan.y}px) scale(${zoom})`;
+    $('mm-scale').textContent=Math.round(zoom*100)+'%';
   }
-  function fit() {
-    baseZoom = Math.min(1.05, (viewport.clientWidth - 28) / bounds.width, (viewport.clientHeight - 85) / bounds.height);
-    zoom = Math.max(.15,baseZoom); pan = {x:-bounds.x*zoom,y:-bounds.y*zoom-24}; position();
+  function fit(bounds=graph?.bounds()) {
+    if(!bounds)return;
+    zoom=Math.max(.002,Math.min(1.05,(viewport.clientWidth-40)/bounds.width,(viewport.clientHeight-110)/bounds.height));
+    pan={x:-bounds.x*zoom,y:-bounds.y*zoom-26};position();
   }
-  function changeZoom(factor, point = {x:0,y:0}) {
-    const next = Math.max(baseZoom * .55, Math.min(baseZoom * 3.2, zoom * factor));
-    pan.x = point.x - (point.x - pan.x) * next / zoom;
-    pan.y = point.y - (point.y - pan.y) * next / zoom;
-    zoom = next; position();
+  function changeZoom(factor,point={x:0,y:0}) {
+    const next=Math.max(.002,Math.min(4,zoom*factor));
+    pan.x=point.x-(point.x-pan.x)*next/zoom;pan.y=point.y-(point.y-pan.y)*next/zoom;
+    zoom=next;position();
   }
   function inspector(item) {
-    const panel = $('mm-inspector'); panel.replaceChildren(el('strong','',item.displayTitle || item.title));
-    const insight = item.userScenarioPain?.[0] || {};
-    for (const [label,value] of [['用户',insight.user],['场景',insight.scenario],['痛点',insight.painPoint]]) {
-      const row=el('p');row.append(el('b','',label),el('span','',value || '暂未记录'));panel.append(row);
+    const panel=$('mm-inspector');panel.replaceChildren(el('strong','',item.displayTitle||item.title));
+    const insight=item.userScenarioPain?.[0]||{};
+    for(const [label,value] of [['用户',insight.user],['场景',insight.scenario],['痛点',insight.painPoint]]) {
+      const row=el('p');row.append(el('b','',label),el('span','',value||'暂未记录'));panel.append(row);
     }
     panel.hidden=false;
   }
-  function showDetails(item) {
-    $('mm-inspector').hidden=true;
-    if (!window.awardArchive?.openCase(item.id)) status('作品详情仍在加载，请稍后再次点击。');
-  }
-  function nodeButton(item, x, y, size, kind) {
-    const isRoot=kind==='root', selected=kind==='selected', emphasized=isRoot||selected;
-    const node=el('button','mm-node mm-'+kind + (emphasized ? ' mm-center' : '') + (kind==='branch'&&!item.count ? ' mm-empty' : ''));
-    node.type='button';node.style.setProperty('--x',x+'px');node.style.setProperty('--y',y+'px');node.style.setProperty('--size',size+'px');
-    node.dataset.nodeId=item.id;
-    if(kind==='case') {
+  function createButton(node) {
+    const button=el('button','mm-node mm-'+node.kind);button.type='button';
+    button.dataset.nodeId=node.id;button.dataset.key=node.key;button.dataset.parentId=node.parent||'';
+    if(node.kind==='case') {
       const media=el('span','mm-case-media');
-      if(item.thumbnail) {
-        const image=new Image();image.alt='';image.loading='lazy';image.decoding='async';image.src=item.thumbnail;image.draggable=false;
-        image.addEventListener('error',()=>{image.remove();media.append(el('span','mm-case-placeholder','图片待补充'));},{once:true});
-        media.append(image);
-      } else media.append(el('span','mm-case-placeholder','图片待补充'));
-      const caption=el('span','mm-case-caption');
-      caption.append(el('span','mm-node-name',item.displayTitle || item.title));
-      if(item.displayTitle!==item.title)caption.append(el('span','mm-case-original',item.title));
-      node.append(media,caption);
-      node.title=(item.displayTitle || item.title)+' · '+item.title;
-      node.setAttribute('aria-label',(item.displayTitle || item.title)+'，'+item.title+'，查看案例详情');
-      node.addEventListener('mouseenter',()=>inspector(item));node.addEventListener('focus',()=>inspector(item));
-      node.addEventListener('mouseleave',()=>{$('mm-inspector').hidden=true;});node.addEventListener('blur',()=>{$('mm-inspector').hidden=true;});
-      node.addEventListener('click',()=>showDetails(item));
-    } else {
-      const descendants=current.cases?'案例':'关联词';
-      const hint=isRoot ? (current.id!=='overview'?'返回六类主题':expanded?'点击收起主题':'点击展开六类主题') : selected ? ('点击'+(expanded?'收起':'展开')+descendants) : kind==='ancestor'?'返回这一级':item.count+' 件作品 · 展开';
-      if(emphasized)node.append(el('span','mm-node-eyebrow',isRoot?'设计起点':'当前选中'));
-      node.append(el('span','mm-node-name',item.label),el('span','mm-node-count',hint));
-      node.setAttribute('aria-expanded',String(isRoot ? current.id!=='overview'||expanded : selected&&expanded));node.setAttribute('aria-controls','mm-canvas');
-      node.setAttribute('aria-label',item.label+'，'+hint);
-      node.addEventListener('click',()=>{
-        if(isRoot){if(current.id==='overview')toggle();else overview(true,true);}
-        else if(selected)toggle();
-        else open(item,{focus:true});
+      if(node.thumbnail) {
+        const image=new Image();image.alt='';image.loading='lazy';image.decoding='async';image.src=node.thumbnail;image.draggable=false;
+        image.addEventListener('error',()=>{image.remove();media.append(el('span','mm-case-placeholder','图片待补充'));},{once:true});media.append(image);
+      }else media.append(el('span','mm-case-placeholder','图片待补充'));
+      const caption=el('span','mm-case-caption');caption.append(el('span','mm-node-name',node.displayTitle||node.title));
+      if(node.displayTitle!==node.title)caption.append(el('span','mm-case-original',node.title));
+      button.append(media,caption);button.title=(node.displayTitle||node.title)+' · '+node.title;
+      button.setAttribute('aria-label',(node.displayTitle||node.title)+'，查看案例详情');
+      button.addEventListener('mouseenter',()=>inspector(node));button.addEventListener('focus',()=>inspector(node));
+      button.addEventListener('mouseleave',()=>{$('mm-inspector').hidden=true;});button.addEventListener('blur',()=>{$('mm-inspector').hidden=true;});
+      button.addEventListener('click',()=>{
+        $('mm-inspector').hidden=true;
+        if(!window.awardArchive?.openCase(node.id))status('作品详情仍在加载，请稍后再次点击。');
       });
+    }else {
+      button.append(el('span','mm-node-eyebrow'),el('span','mm-node-name',node.label),el('span','mm-node-count'));
+      button.addEventListener('click',()=>node.kind==='more'?loadBranch(node.parent,true):toggleNode(node.key));
     }
-    return node;
+    return button;
   }
-  function header() {
-    $('mm-title').textContent=current.id==='overview' ? index.title : current.label;
-    $('mm-scene-label').textContent=current.id==='overview' ? '从一个词开始，展开六类设计主题' : (current.path?.[0]?.label || '设计主题')+' / 逐层探索';
-    $('mm-meta').textContent=current.id==='overview' ? index.stats.works.toLocaleString('zh-CN')+' 件作品 · '+index.stats.taxonomyNodes+' 个分类节点' : current.count+' 件关联作品 · '+(current.cases?'点击案例查看详情':'点击气泡，继续深入');
-    const crumbs = [{id:'overview',label:'总览'},...(current.path || [])];
-    const frag=document.createDocumentFragment();
-    for(const [i,entry] of crumbs.entries()) {
-      if(i)frag.append(el('span','','/'));
-      const b=el('button','',entry.label);b.type='button';
-      if(i===crumbs.length-1)b.setAttribute('aria-current','location');
-      b.addEventListener('click',()=>entry.id==='overview'?overview(true):open(knownNodes.get(entry.id)||entry,{focus:true}));frag.append(b);
+  function updateButton(button,node) {
+    const selected=graph.selected===node.key,root=node.kind==='root';
+    const word=root||node.kind==='branch';
+    const size=root?204:node.kind==='case'?184:selected&&word?168:144;
+    button.style.setProperty('--x',node.x+'px');button.style.setProperty('--y',node.y+'px');button.style.setProperty('--size',size+'px');
+    button.style.setProperty('--mm-accent',colors[node.theme]||colors[0]);
+    button.classList.toggle('mm-center',root||selected&&word);button.classList.toggle('mm-selected',selected&&word);
+    button.classList.toggle('mm-empty',node.kind==='branch'&&!node.count);
+    if(node.kind==='case')return;
+    const parent=graph.nodes.get(node.parent),hint=button.querySelector('.mm-node-count'),eyebrow=button.querySelector('.mm-node-eyebrow');
+    if(node.kind==='more') {
+      eyebrow.hidden=true;button.disabled=parent.loading;
+      button.querySelector('.mm-node-name').textContent=parent.loading?'正在加载…':parent.error?'加载失败，点击重试':'＋ 加载更多案例';
+      hint.textContent='已显示 '+parent.children.length+' / '+parent.count+' 件';return;
     }
-    $('mm-breadcrumb').replaceChildren(frag);
-    host.querySelector('[data-mm-action="parent"]').disabled=current.id==='overview';
-    host.querySelector('[data-mm-action="pending"]').setAttribute('aria-pressed',String(current.id===pendingRoot?.id));
+    eyebrow.hidden=!root&&!selected;eyebrow.textContent=root?'设计起点':'当前选中';
+    button.setAttribute('aria-expanded',String(node.expanded));button.setAttribute('aria-controls','mm-canvas');
+    button.setAttribute('aria-busy',String(node.loading));
+    hint.textContent=node.loading?'正在加载…':node.error?'加载失败 · 收起后重试':node.expanded?(node.loaded&&!node.children.length?'暂无案例 · 点击收起':'点击收起下级'):root?'点击展开六类主题':node.count+' 件作品 · 展开';
+    button.setAttribute('aria-label',node.label+'，'+hint.textContent);
   }
-  function render(animate=true, focus=false) {
-    if(!current)return;
-    header();$('mm-inspector').hidden=true;status('');
-    const subset=expanded ? items().slice(page*pageSize(),(page+1)*pageSize()) : [];
-    const layer=el('div','mm-layer');layer.dataset.branch=current.id;
-    layer.dataset.expanded=String(expanded);
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('class','mm-links');svg.setAttribute('viewBox','-600 -400 1200 800');svg.setAttribute('aria-hidden','true');layer.append(svg);
-    const caseMode=!!current.cases, small=mobile(), overviewMode=current.id==='overview';
-    const size=caseMode?(small?164:184):(small?104:132);
-    const rootPosition=overviewMode ? {x:0,y:0} : small ? {x:0,y:-238} : {x:-440,y:0};
-    const selectedPosition=small&&!overviewMode ? {x:0,y:-30} : {x:0,y:0};
-    const placed=[];
-    const addNode=(item,point,diameter,kind)=>{
-      const button=nodeButton(item,point.x,point.y,diameter,kind);
-      layer.append(button);placed.push({...point,size:diameter});return button;
-    };
-    const link=(from,to,context=false)=>{
-      const line=document.createElementNS(svg.namespaceURI,'path');
-      line.setAttribute('d',`M ${from.x} ${from.y} Q ${from.x+(to.x-from.x)*.25} ${from.y+(to.y-from.y)*.75} ${to.x} ${to.y}`);
-      if(context)line.setAttribute('class','mm-context-link');svg.append(line);
-    };
-    if(!overviewMode){
-      const ancestors=(current.path||[]).slice(0,-1);
-      const parent=ancestors.at(-1);
-      if(parent&&!small){
-        const parentPosition={x:-225,y:0};
-        link(rootPosition,parentPosition,true);link(parentPosition,selectedPosition,true);
-        addNode(knownNodes.get(parent.id)||parent,parentPosition,106,'ancestor');
-      }else link(rootPosition,selectedPosition,true);
-    }
-    const coordinates=subset.map((_,i)=>{
-      if(overviewMode){
-        const angle=-Math.PI/2+i*Math.PI*2/6;
-        return {x:Math.cos(angle)*(small?170:310),y:Math.sin(angle)*(small?220:238)};
-      }
-      if(small){
-        if(caseMode)return {x:subset.length===1?0:(i===0?-99:99),y:172};
-        const angle=subset.length===1?0:(i/(subset.length-1)-.5)*1.6;
-        return {x:Math.sin(angle)*180,y:Math.cos(angle)*235-30};
-      }
-      const arc=caseMode?2.5:2.97;
-      const angle=subset.length===1?0:(i/(subset.length-1)-.5)*arc;
-      return {x:Math.cos(angle)*(caseMode?355:345),y:Math.sin(angle)*(caseMode?300:320)};
+  function header(visible) {
+    $('mm-title').textContent=index.title;
+    $('mm-scene-label').textContent='多分支原位展开 · 拖动或手动适应视图查看全貌';
+    $('mm-meta').textContent=index.stats.works.toLocaleString('zh-CN')+' 件作品 · 已展开 '+visible.filter(n=>n.expanded).length+' 个分支';
+    const crumbs=document.createDocumentFragment();
+    graph.path().forEach((node,i)=>{
+      if(i)crumbs.append(el('span','','/'));
+      const b=el('button','',i===0?'设计起点':node.label);b.type='button';
+      if(node.key===graph.selected)b.setAttribute('aria-current','location');
+      // Breadcrumbs mark context; they never replace the graph or move the camera.
+      b.addEventListener('click',()=>{graph.select(node.key);render();});crumbs.append(b);
     });
-    for(const [i,item] of subset.entries()) {
-      const point=coordinates[i];link(selectedPosition,point);register(item);
-      const button=addNode(item,point,size,caseMode?'case':'branch');
-      if(animate&&!reduced.matches&&button.animate){
-        button.animate([
-          {opacity:0,transform:`translate(calc(-50% + ${selectedPosition.x-point.x}px),calc(-50% + ${selectedPosition.y-point.y}px)) scale(.35)`},
-          {opacity:1,transform:'translate(-50%,-50%) scale(1)'}
-        ],{duration:430,delay:i*26,easing:'cubic-bezier(.2,.7,.2,1)',fill:'backwards'});
+    $('mm-breadcrumb').replaceChildren(crumbs);
+    host.querySelector('[data-mm-action="collapse"]').disabled=!graph.nodes.get(graph.selected)?.expanded;
+    host.querySelector('[data-mm-action="pending"]').setAttribute('aria-pressed',String(graph.nodes.get(graph.pending?.id)?.expanded||false));
+  }
+  function render() {
+    if(!graph)return;
+    const visible=graph.visible(),keys=new Set(visible.map(n=>n.key));header(visible);status('');$('mm-inspector').hidden=true;
+    for(const [key,button] of buttons)if(!keys.has(key)) {
+      const focused=document.activeElement===button;button.remove();buttons.delete(key);
+      if(focused)buttons.get(graph.selected)?.focus({preventScroll:true});
+    }
+    for(const [key,line] of links)if(!keys.has(key)){line.remove();links.delete(key);}
+    for(const node of visible) {
+      let button=buttons.get(node.key);
+      if(!button) {
+        button=createButton(node);buttons.set(node.key,button);layer.append(button);
+        if(!reduced.matches&&button.animate)button.animate([{opacity:0},{opacity:1}],{duration:220,easing:'ease-out'});
+      }
+      updateButton(button,node);
+      if(node.parent) {
+        let line=links.get(node.key);
+        if(!line){line=document.createElementNS(svg.namespaceURI,'path');svg.append(line);links.set(node.key,line);}
+        const parent=graph.nodes.get(node.parent),dx=node.x-parent.x,dy=node.y-parent.y;
+        line.setAttribute('d',`M ${parent.x} ${parent.y} Q ${parent.x+dx*.25} ${parent.y+dy*.75} ${node.x} ${node.y}`);
+        line.style.stroke=colors[node.theme]||colors[0];line.style.strokeOpacity='.26';
       }
     }
-    addNode(rootView,rootPosition,small?164:204,'root');
-    if(!overviewMode)addNode(current,selectedPosition,small?156:192,'selected');
-    const minX=Math.min(...placed.map(p=>p.x-p.size/2)),maxX=Math.max(...placed.map(p=>p.x+p.size/2));
-    const minY=Math.min(...placed.map(p=>p.y-p.size/2)),maxY=Math.max(...placed.map(p=>p.y+p.size/2));
-    bounds={width:maxX-minX+24,height:maxY-minY+24,x:(minX+maxX)/2,y:(minY+maxY)/2};
-    const pages=Math.ceil(items().length/pageSize());
-    $('mm-pagination').hidden=!expanded||(pages<=1&&!current.next&&!pageHistory.length);
-    const offset=pageHistory.length*12+page*pageSize();
-    $('mm-page-label').textContent=caseMode ? `${offset+1}–${offset+subset.length} / ${current.count} 件` : `${page+1} / ${Math.max(pages,1)} 组关联词`;
-    host.querySelector('[data-mm-action="previous-page"]').disabled=page===0&&!pageHistory.length;
-    host.querySelector('[data-mm-action="next-page"]').disabled=page>=pages-1&&!current.next;
-    if(expanded&&!subset.length)status('这个分类暂时没有已映射的案例，可返回上一级继续探索。');
-    transition?.cancel();
-    const old=activeLayer;if(old)old.inert=true;activeLayer=layer;canvas.append(layer);fit();
-    if(animate&&!reduced.matches&&layer.animate) {
-      old?.animate([{opacity:1},{opacity:0}],{duration:180}).finished.then(()=>old.remove()).catch(()=>old.remove());
-      transition=layer.animate([{opacity:0,transform:'scale(.94)'},{opacity:1,transform:'scale(1)'}],{duration:340,easing:'ease-out'});
-    } else old?.remove();
-    for(const stale of canvas.querySelectorAll('.mm-layer'))if(stale!==layer&&stale!==old)stale.remove();
-    if(focus) (layer.querySelector('.mm-selected')||layer.querySelector('.mm-root')).focus({preventScroll:true});
+    // No fit(), scrollTo(), fullscreen request or camera mutation is allowed here.
   }
-  async function open(entry, options={}) {
-    if(!entry?.url){if(entry?.id==='overview')overview();return;}
-    const token=++request;status('正在展开 '+entry.label+'…');
-    try {
-      const data=await read(entry.url);if(token!==request)return;
-      current=data;expanded=true;lastPageUrl=entry.url;page=0;if(!options.paging)pageHistory=[];
-      (data.children||[]).forEach(register);
-      for(const ancestor of data.path||[])register(ancestor);
-      const theme=rootView.children.findIndex(root=>root.id===data.path?.[0]?.id);
-      host.style.setProperty('--mm-accent',colors[theme]||'#bac3cb');
-      render(true,options.focus);
-    } catch {if(token===request)showError(()=>open(entry,options));}
+  async function loadBranch(key,more=false) {
+    const node=graph.nodes.get(key);if(!node||requests.has(key))return requests.get(key);
+    const url=more?node.next:node.url;if(!url||!more&&node.loaded)return;
+    node.loading=true;node.error='';render();
+    const task=(async()=>{
+      try {graph.apply(key,await read(url));}
+      catch {node.error='加载失败';}
+      finally {node.loading=false;requests.delete(key);render();}
+    })();requests.set(key,task);return task;
   }
-  function overview(focus=false, reveal=true){++request;current=rootView;expanded=reveal;page=0;pageHistory=[];host.style.setProperty('--mm-accent',colors[0]);render(true,focus);}
-  function toggle(){++request;expanded=!expanded;render(true,true);}
-  function collapse(){if(!current)return;const path=current.path||[];if(current.id==='overview'){expanded=false;render(true,true);}else if(path.length<2)overview(true);else open(knownNodes.get(path[path.length-2].id)||path[path.length-2],{focus:true});}
+  function toggleNode(key) {
+    const expanded=graph.toggle(key);render();if(expanded)loadBranch(key);
+  }
+  function collapseSelected() {
+    const node=graph?.nodes.get(graph.selected);if(node?.expanded){node.expanded=false;render();}
+  }
   function sceneTop(){return host.getBoundingClientRect().top+scrollY;}
   function updateScroll() {
-    frame=undefined;const rect=host.getBoundingClientRect();
-    const visible=rect.top<innerHeight&&rect.bottom>0;
-    if(visible&&!index&&window.awardArchive?.ready)init();
-    stage.style.opacity=String(Math.max(0,Math.min(1,1-rect.top/innerHeight)));
-    stage.inert=!visible;
+    frame=undefined;const rect=host.getBoundingClientRect(),visible=rect.top<innerHeight&&rect.bottom>0;
+    if(visible&&!graph&&window.awardArchive?.ready)init();
+    stage.style.opacity=String(Math.max(0,Math.min(1,1-rect.top/innerHeight)));stage.inert=!visible;
   }
-  window.addEventListener('scroll',()=>{if(!frame)frame=nextFrame(updateScroll);},{passive:true});
-  window.addEventListener('resize',()=>{if(current){page=0;render(false);}updateScroll();});
+  window.addEventListener('scroll',()=>{if(!frame)frame=requestAnimationFrame(updateScroll);},{passive:true});
+  window.addEventListener('resize',updateScroll);
   function observeEntry() {
     if('IntersectionObserver' in window){const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){init();observer.disconnect();}},{rootMargin:'400px'});observer.observe(host);}
     updateScroll();
   }
   if(window.awardArchive?.ready)observeEntry();else window.addEventListener('archive:ready',observeEntry,{once:true});
-  host.addEventListener('click',async event=>{
-    const action=event.target.closest('[data-mm-action]')?.dataset.mmAction;if(!action)return;
-    if(action==='exit'){window.scrollTo({top:Math.max(0,sceneTop()-innerHeight*.8),behavior:reduced.matches?'instant':'smooth'});}
+  host.addEventListener('click',event=>{
+    const control=event.target.closest('[data-mm-action]'),action=control?.dataset.mmAction;if(!action)return;
+    if(action==='exit')window.scrollTo({top:Math.max(0,sceneTop()-innerHeight*.8),behavior:reduced.matches?'instant':'smooth'});
     else if(action==='in')changeZoom(1.2);
     else if(action==='out')changeZoom(1/1.2);
     else if(action==='fit')fit();
-    else if(action==='pan'){const active=viewport.classList.toggle('mm-pan-mode');event.target.setAttribute('aria-pressed',String(active));event.target.textContent=active?'纵向浏览':'移动导图';}
-    else if(action==='parent')collapse();
-    else if(action==='reset')overview(true,false);
-    else if(action==='pending'&&pendingRoot)open(pendingRoot,{focus:true});
-    else if(action==='next-page'){
-      if(page<Math.ceil(items().length/pageSize())-1){page++;render();}
-      else if(current.next){pageHistory.push(lastPageUrl);await open({url:current.next,label:current.label},{paging:true});}
-    } else if(action==='previous-page'){
-      if(page>0){page--;render();}else if(pageHistory.length){const url=pageHistory.pop();await open({url,label:current.label},{paging:true});page=Math.max(0,Math.ceil(items().length/pageSize())-1);render();}
-    }
+    else if(action==='pan'){const active=viewport.classList.toggle('mm-pan-mode');control.setAttribute('aria-pressed',String(active));control.textContent=active?'纵向浏览':'移动导图';}
+    else if(action==='collapse')collapseSelected();
+    else if(action==='reset'&&graph){graph.collapseAll();render();}
+    else if(action==='pending'&&graph){const node=graph.showPending();render();if(node)loadBranch(node.key);}
   });
   viewport.addEventListener('wheel',event=>{
     if(!event.ctrlKey&&!event.metaKey)return;
@@ -258,7 +197,7 @@
     changeZoom(Math.exp(-event.deltaY*.004),{x:event.clientX-rect.left-rect.width/2,y:event.clientY-rect.top-rect.height/2});
   },{passive:false});
   viewport.addEventListener('pointerdown',event=>{
-    if(event.target.closest('.mm-zoom,.mm-pagination')||event.button>0)return;
+    if(event.target.closest('.mm-zoom')||event.button>0)return;
     if(event.pointerType==='touch'&&!viewport.classList.contains('mm-pan-mode'))return;
     pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
     dragging={x:event.clientX,y:event.clientY,start:{...pan},distance:pointers.size===2?distance():0,zoom};moved=false;
@@ -285,7 +224,7 @@
     if(event.key==='+'||event.key==='='){event.preventDefault();changeZoom(1.2);}
     else if(event.key==='-'){event.preventDefault();changeZoom(1/1.2);}
     else if(event.key==='0'){event.preventDefault();fit();}
-    else if(event.key==='Escape'){collapse();}
+    else if(event.key==='Escape')collapseSelected();
     else if(event.key.startsWith('Arrow')&&event.target===viewport){event.preventDefault();pan.x+=event.key==='ArrowLeft'?40:event.key==='ArrowRight'?-40:0;pan.y+=event.key==='ArrowUp'?40:event.key==='ArrowDown'?-40:0;position();}
   });
   updateScroll();

@@ -30,8 +30,9 @@
 .mm-center .mm-node-name{font-size:19px;font-weight:600;color:var(--mm-accent)}
 .mm-node-eyebrow{font-size:9px;letter-spacing:.15em;color:#a8b5a7}
 .mm-selected .mm-node-name{font-size:22px}
-.mm-ancestor{background:#12191b;border-style:dashed;box-shadow:none;padding:12px}
-.mm-ancestor .mm-node-name{font-size:13px}.mm-ancestor .mm-node-count{font-size:9px}
+.mm-node.mm-more{width:224px;height:64px;border-radius:16px;background:#151e1d;border-style:dashed;gap:4px;padding:8px}
+.mm-more .mm-node-name{font-size:13px}.mm-more .mm-node-count{font-size:11px}
+.mm-more:disabled{cursor:wait;opacity:.65}
 .mm-center .mm-node-count{color:#c1ccba}.mm-node.mm-empty{opacity:.55}
 .mm-node.mm-case{padding:0;overflow:hidden;background:#172022;border-color:#94a8b255;border-radius:16px;gap:0;justify-content:flex-start;align-items:stretch;text-align:left}
 .mm-case-media{display:flex;align-items:center;justify-content:center;width:100%;height:61%;flex-shrink:0;background:#edf0eb;overflow:hidden}

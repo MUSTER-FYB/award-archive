@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>AWARD / 作品档案馆</title>
-  <link rel="stylesheet" href="./base.css?v=4b85b0efaf0f">
-  <link rel="stylesheet" href="./archive.css?v=4b85b0efaf0f">
-  <link rel="stylesheet" href="./mind-map.css?v=4b85b0efaf0f">
-  <script src="./app.js?v=4b85b0efaf0f" defer></script>
-  <script src="./mind-map.js?v=4b85b0efaf0f" defer></script>
+  <link rel="stylesheet" href="./base.css?v=3c35616cb5c4">
+  <link rel="stylesheet" href="./archive.css?v=3c35616cb5c4">
+  <link rel="stylesheet" href="./mind-map.css?v=3c35616cb5c4">
+  <script src="./app.js?v=3c35616cb5c4" defer></script>
+  <script src="./mind-map-graph.js?v=3c35616cb5c4" defer></script>
+  <script src="./mind-map.js?v=3c35616cb5c4" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -71,10 +72,9 @@
       <div class="mm-canvas" id="mm-canvas"></div>
       <p class="mm-status" id="mm-status" role="status">滚动进入后加载分类</p>
       <div class="mm-zoom" aria-label="导图控制"><button type="button" class="mm-button mm-touch-mode" data-mm-action="pan" aria-pressed="false">移动导图</button><button type="button" class="mm-button" data-mm-action="out" aria-label="缩小导图">−</button><span id="mm-scale">100%</span><button type="button" class="mm-button" data-mm-action="in" aria-label="放大导图">+</button><button type="button" class="mm-button" data-mm-action="fit">适应视图</button></div>
-      <div class="mm-pagination" id="mm-pagination" hidden><button type="button" class="mm-button" data-mm-action="previous-page">←</button><span id="mm-page-label"></span><button type="button" class="mm-button" data-mm-action="next-page">→</button></div>
     </div>
     <aside class="mm-inspector" id="mm-inspector" aria-label="案例速览" hidden></aside>
-    <footer class="mm-footer"><p>点击词语，逐层展开 <span>· 再次点击收起 · 拖动平移 · Ctrl + 滚轮缩放</span></p><div class="mm-step"><button type="button" class="mm-button" data-mm-action="pending" hidden>待映射案例</button><button type="button" class="mm-button" data-mm-action="parent" disabled>上一级</button><button type="button" class="mm-button" data-mm-action="reset">回到起点</button></div></footer>
+    <footer class="mm-footer"><p>各分支独立展开 <span>· 再点收起下级 · 拖动平移 · Ctrl + 滚轮缩放</span></p><div class="mm-step"><button type="button" class="mm-button" data-mm-action="pending" hidden>待映射案例</button><button type="button" class="mm-button" data-mm-action="collapse" disabled>收起选中</button><button type="button" class="mm-button" data-mm-action="reset">收起全部</button></div></footer>
   </div>
 </section>
 <div class="modal-backdrop" id="modalBackdrop">
