@@ -7,10 +7,9 @@
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)') || {matches:true};
   const nextFrame = window.requestAnimationFrame || (callback => setTimeout(callback,16));
   const cache = new Map(), knownNodes = new Map();
-  let index, loading, current, rootView, pendingRoot, expanded = false, page = 0, request = 0, frame, snapTimer;
+  let index, loading, current, rootView, pendingRoot, expanded = false, page = 0, request = 0, frame;
   let zoom = 1, pan = {x:0, y:0}, baseZoom = 1, bounds = {width:1000, height:600, x:0, y:0};
-  let activeLayer, transition, dragging, moved = false, lastPageUrl, pageHistory = [], suppressSnapUntil = 0;
-  let lastScroll = window.scrollY, scrollDirection = 0;
+  let activeLayer, transition, dragging, moved = false, lastPageUrl, pageHistory = [];
   const pointers = new Map();
   const colors = ['#b7ee43','#9ad1b2','#8eb4ff','#ffc078','#d5b5f3','#f3afa7'];
   const el = (tag, cls, text) => {
@@ -228,14 +227,6 @@
     if(visible&&!index&&window.awardArchive?.ready)init();
     stage.style.opacity=String(Math.max(0,Math.min(1,1-rect.top/innerHeight)));
     stage.inert=!visible;
-    if(window.scrollY!==lastScroll)scrollDirection=Math.sign(window.scrollY-lastScroll);
-    lastScroll=window.scrollY;
-    if(!index||!visible||modalOpen())return;
-    clearTimeout(snapTimer);
-    // Snap only on entry. Scrolling never changes the branch selected by a click.
-    if(scrollDirection>0&&!dragging&&performance.now()>suppressSnapUntil&&rect.top>2&&rect.top<innerHeight*.3) snapTimer=setTimeout(()=>{
-      if(!modalOpen()&&!dragging)window.scrollTo({top:sceneTop(),behavior:reduced.matches?'instant':'smooth'});
-    },210);
   }
   window.addEventListener('scroll',()=>{if(!frame)frame=nextFrame(updateScroll);},{passive:true});
   window.addEventListener('resize',()=>{if(current){page=0;render(false);}updateScroll();});
@@ -246,7 +237,7 @@
   if(window.awardArchive?.ready)observeEntry();else window.addEventListener('archive:ready',observeEntry,{once:true});
   host.addEventListener('click',async event=>{
     const action=event.target.closest('[data-mm-action]')?.dataset.mmAction;if(!action)return;
-    if(action==='exit'){clearTimeout(snapTimer);suppressSnapUntil=performance.now()+1600;window.scrollTo({top:Math.max(0,sceneTop()-innerHeight*.8),behavior:reduced.matches?'instant':'smooth'});}
+    if(action==='exit'){window.scrollTo({top:Math.max(0,sceneTop()-innerHeight*.8),behavior:reduced.matches?'instant':'smooth'});}
     else if(action==='in')changeZoom(1.2);
     else if(action==='out')changeZoom(1/1.2);
     else if(action==='fit')fit();
